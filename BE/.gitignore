@@ -1,0 +1,37 @@
+# --- Python 빌드/캐시 ---
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+*.egg-info/
+.eggs/
+*.log
+
+# --- 가상환경 ---
+venv/
+.venv/
+
+# --- 테스트/도구 캐시 ---
+.pytest_cache/
+.mypy_cache/
+.coverage
+htmlcov/
+
+# --- IDE / 에디터 ---
+.vscode/
+.idea/
+*.code-workspace
+
+# --- OS 잡파일 ---
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# --- 환경변수 / 비밀 ---
+.env
+.env.*
+!.env.example
+
+# --- 기타 빌드 산출물 ---
+dist/
+build/
