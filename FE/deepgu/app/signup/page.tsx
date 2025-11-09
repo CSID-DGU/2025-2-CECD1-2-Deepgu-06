@@ -76,7 +76,7 @@ export default function SignUpPage() {
               maxLength={50}
               value={email}
               onChange={(e) => setEmail(e.target.value)}
-              className='text-Hana-Black placeholder:text-Icon-Detail tex-lg mb-5 h-[50px] w-full pl-5 font-[AppleSDGothicNeoM] placeholder:font-[AppleSDGothicNeoM] placeholder:text-lg'
+              className='text-Hana-Black placeholder:text-Icon-Detail mb-5 h-[50px] w-full pl-5 font-[AppleSDGothicNeoM] text-lg placeholder:font-[AppleSDGothicNeoM] placeholder:text-lg'
             />
           </div>
 
