@@ -1,5 +1,5 @@
-import { cn } from '@/lib/utils';
 import { HTMLAttributes, PropsWithChildren } from 'react';
+import { cn } from '@/lib/utils';
 
 type Props = {
   className?: string;
@@ -15,6 +15,10 @@ export const fontMap = {
   heavy: 'font-[AppleSDGothicNeoH]',
 } as const;
 
+/**
+ * Txt 컴포넌트
+ * - weight: 글씨 두께 (semibold/medium/bold/extrabold/heavy)
+ */
 export default function Txt({
   children,
   className,

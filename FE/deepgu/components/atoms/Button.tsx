@@ -8,7 +8,6 @@ const BgColor = {
   white: 'bg-white',
 } as const;
 
-
 interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
   color?: keyof typeof BgColor;
   textWeight?: keyof typeof fontMap;
