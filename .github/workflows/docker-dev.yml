@@ -34,8 +34,8 @@ jobs:
       - name: Build Docker image
         uses: docker/build-push-action@v6
         with:
-          context: ./BE
-          file: ./BE/Dockerfile
+          context: ./BE/app
+          file: ./BE/app/Dockerfile
           load: true
           push: false
           platforms: linux/amd64
