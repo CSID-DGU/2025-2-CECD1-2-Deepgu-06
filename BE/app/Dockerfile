@@ -8,7 +8,7 @@ RUN python -m venv $VENV
 ENV PATH="$VENV/bin:$PATH"
 
 # 의존성 설치
-COPY ../requirements.txt .
+COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
 # ----- Runtime -----
