@@ -1,0 +1,149 @@
+name: Docker Build, Health Tests, Push & Deploy
+
+on:
+  push:
+    branches: [dev]
+    paths:
+      - '.github/**'
+      - 'BE/**'
+  pull_request:
+    branches: [dev]
+    paths:
+      - '.github/**'
+      - 'BE/**'
+  workflow_dispatch:
+
+permissions:
+  id-token: write     # OIDC 토큰 발급
+  contents: read      # repo checkout
+
+jobs:
+  build-and-push:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        shell: bash
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build Docker image
+        uses: docker/build-push-action@v6
+        with:
+          context: ./BE
+          file: ./BE/Dockerfile
+          load: true
+          push: false
+          platforms: linux/amd64
+          tags: noonai-backend:build-${{ github.sha }}
+
+      # dev 푸시 혹은 dev 대상 PR(내부)일 때만 ECR에 푸시
+      - name: Configure AWS credentials (OIDC)
+        if: github.event_name == 'push' || (github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository)
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: arn:aws:iam::${{ secrets.AWS_ACCOUNT_ID }}:role/GHA-ECRPush-noonai-dev
+          aws-region:      ${{ secrets.AWS_REGION }}
+          role-session-name: gha-noonai-${{ github.run_id }}
+
+      - name: Login to Amazon ECR
+        if: github.event_name == 'push' || (github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository)
+        uses: aws-actions/amazon-ecr-login@v2
+
+      - name: Tag & push to ECR
+        if: github.event_name == 'push' || (github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository)
+        run: |
+          set -euo pipefail
+          IMAGE_URI=${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.${{ secrets.AWS_REGION }}.amazonaws.com/noonai
+          PREFIX=dev
+          if [[ "${{ github.event_name }}" == "pull_request" ]]; then PREFIX=pr; fi
+          TAG=${PREFIX}-${{ github.sha }}
+          docker tag noonai-backend:build-${{ github.sha }} $IMAGE_URI:$TAG
+          docker push $IMAGE_URI:$TAG
+
+  deploy-to-ec2:
+    needs: build-and-push
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    defaults:
+      run:
+        shell: bash
+
+    # dev 푸시 또는 dev 대상 "내부 PR"만 배포(외부 포크 PR 차단)
+    if: >
+      (github.event_name == 'push') ||
+      (github.event_name == 'pull_request' &&
+       github.base_ref == 'dev' &&
+       github.event.pull_request.head.repo.full_name == github.repository)
+
+    steps:
+      # 1) EC2에 .env 주입
+      - name: EC2 ─ inject .env
+        uses: appleboy/ssh-action@v1.2.2
+        with:
+          host:     ${{ secrets.EC2_HOST }}
+          username: ${{ secrets.EC2_USER }}
+          key:      ${{ secrets.EC2_SSH_KEY }}
+          script: |
+            set -euo pipefail
+            mkdir -p /home/${{ secrets.EC2_USER }}/app
+            umask 077
+            printf '%s\n' "${{ secrets.ENV }}" > /home/${{ secrets.EC2_USER }}/app/.env
+            chmod 600 /home/${{ secrets.EC2_USER }}/app/.env
+
+      # 2) EC2에서 ECR 로그인 + Pull
+      - name: EC2 ─ ECR login & pull
+        uses: appleboy/ssh-action@v1.2.2
+        with:
+          host:     ${{ secrets.EC2_HOST }}
+          username: ${{ secrets.EC2_USER }}
+          key:      ${{ secrets.EC2_SSH_KEY }}
+          script: |
+            set -euo pipefail
+            aws ecr get-login-password --region ${{ secrets.AWS_REGION }} \
+              | docker login --username AWS --password-stdin \
+                ${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.${{ secrets.AWS_REGION }}.amazonaws.com
+            PREFIX=dev
+            if [[ "${{ github.event_name }}" == "pull_request" ]]; then PREFIX=pr; fi
+            TAG=${PREFIX}-${{ github.sha }}
+            docker pull ${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.${{ secrets.AWS_REGION }}.amazonaws.com/noonai:$TAG
+
+      # 3) 컨테이너 재배포 (로컬호스트 바인딩으로 외부 노출 방지)
+      - name: EC2 ─ deploy container
+        uses: appleboy/ssh-action@v1.2.2
+        with:
+          host:     ${{ secrets.EC2_HOST }}
+          username: ${{ secrets.EC2_USER }}
+          key:      ${{ secrets.EC2_SSH_KEY }}
+          script: |
+            set -euo pipefail
+            PREFIX=dev
+            if [[ "${{ github.event_name }}" == "pull_request" ]]; then PREFIX=pr; fi
+            TAG=${PREFIX}-${{ github.sha }}
+            docker stop noonai || true && docker rm noonai || true
+            ENV_OPT=""
+            [[ -f /home/${{ secrets.EC2_USER }}/app/.env ]] && ENV_OPT="--env-file /home/${{ secrets.EC2_USER }}/app/.env"
+            docker run -d --name noonai --restart unless-stopped \
+              -p 127.0.0.1:8000:8000 $ENV_OPT \
+              ${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.${{ secrets.AWS_REGION }}.amazonaws.com/noonai:$TAG
+
+      # 4) 헬스체크 (로컬로만)
+      - name: EC2 ─ health checks
+        uses: appleboy/ssh-action@v1.2.2
+        with:
+          host:     ${{ secrets.EC2_HOST }}
+          username: ${{ secrets.EC2_USER }}
+          key:      ${{ secrets.EC2_SSH_KEY }}
+          script: |
+            set -euo pipefail
+            for i in {1..20}; do
+              code=$(curl --max-time 2 -s -o /dev/null -w "%{http_code}" http://127.0.0.1:8000/api/health || true)
+              (( code == 200 )) && break
+              sleep 3
+            done
+            curl -sSf http://127.0.0.1:8000/api/health
+            curl -sSf http://127.0.0.1:8000/api/dbhealth
