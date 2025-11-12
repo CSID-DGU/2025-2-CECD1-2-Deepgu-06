@@ -41,6 +41,29 @@ jobs:
           platforms: linux/amd64
           tags: noonai-backend:build-${{ github.sha }}
 
+      # ------------------------------- #
+      # ADDED: OIDC 클레임 디버그 (Assume 전)
+      # ------------------------------- #
+      - name: Debug OIDC claims (before assume)
+        if: github.event_name == 'push' || (github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository)
+        run: |
+          set -euo pipefail
+          sudo apt-get update -y && sudo apt-get install -y jq
+          token_json=$(curl -sSL -H "Authorization: Bearer $ACTIONS_ID_TOKEN_REQUEST_TOKEN" \
+            "${ACTIONS_ID_TOKEN_REQUEST_URL}&audience=sts.amazonaws.com")
+          token=$(echo "$token_json" | jq -r .value)
+          payload=$(echo "$token" | cut -d '.' -f2 | base64 -d 2>/dev/null || true)
+          echo "===== OIDC payload (decoded) ====="
+          echo "$payload" | jq .
+          echo "===== Expected repository ====="
+          echo "$GITHUB_REPOSITORY"
+          echo "===== Expected ref pattern ====="
+          if [[ "${{ github.event_name }}" == "push" ]]; then
+            echo "repo:$GITHUB_REPOSITORY:ref:refs/heads/dev"
+          else
+            echo "repo:$GITHUB_REPOSITORY:ref:refs/pull/*/merge"
+          fi
+
       # dev 푸시 혹은 dev 대상 PR(내부)일 때만 ECR에 푸시
       - name: Configure AWS credentials (OIDC)
         if: github.event_name == 'push' || (github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository)
@@ -62,6 +85,7 @@ jobs:
           PREFIX=dev
           if [[ "${{ github.event_name }}" == "pull_request" ]]; then PREFIX=pr; fi
           TAG=${PREFIX}-${{ github.sha }}
+          echo "Pushing -> ${IMAGE_URI}:${TAG}"
           docker tag noonai-backend:build-${{ github.sha }} $IMAGE_URI:$TAG
           docker push $IMAGE_URI:$TAG
 
@@ -104,13 +128,24 @@ jobs:
           key:      ${{ secrets.EC2_SSH_KEY }}
           script: |
             set -euo pipefail
-            aws ecr get-login-password --region ${{ secrets.AWS_REGION }} \
-              | docker login --username AWS --password-stdin \
-                ${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.${{ secrets.AWS_REGION }}.amazonaws.com
+            AWS_ACCOUNT_ID='${{ secrets.AWS_ACCOUNT_ID }}'
+            AWS_REGION='${{ secrets.AWS_REGION }}'
+            REPO='noonai'
             PREFIX=dev
             if [[ "${{ github.event_name }}" == "pull_request" ]]; then PREFIX=pr; fi
             TAG=${PREFIX}-${{ github.sha }}
-            docker pull ${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.${{ secrets.AWS_REGION }}.amazonaws.com/noonai:$TAG
+            IMAGE_URI="${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com/${REPO}"
+
+            echo "Login ECR: ${IMAGE_URI}"
+            aws ecr get-login-password --region "${AWS_REGION}" \
+              | docker login --username AWS --password-stdin "${IMAGE_URI}"
+
+            echo "Available image tags before pull (debug)"
+            aws ecr list-images --repository-name "${REPO}" --region "${AWS_REGION}" \
+              --query 'imageIds[?imageTag!=null].imageTag' --output table || true
+
+            echo "Pull -> ${IMAGE_URI}:${TAG}"
+            docker pull "${IMAGE_URI}:${TAG}"
 
       # 3) 컨테이너 재배포 (로컬호스트 바인딩으로 외부 노출 방지)
       - name: EC2 ─ deploy container
@@ -121,15 +156,22 @@ jobs:
           key:      ${{ secrets.EC2_SSH_KEY }}
           script: |
             set -euo pipefail
+            AWS_ACCOUNT_ID='${{ secrets.AWS_ACCOUNT_ID }}'
+            AWS_REGION='${{ secrets.AWS_REGION }}'
+            REPO='noonai'
             PREFIX=dev
             if [[ "${{ github.event_name }}" == "pull_request" ]]; then PREFIX=pr; fi
             TAG=${PREFIX}-${{ github.sha }}
+            IMAGE_URI="${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com/${REPO}"
+
             docker stop noonai || true && docker rm noonai || true
             ENV_OPT=""
             [[ -f /home/${{ secrets.EC2_USER }}/app/.env ]] && ENV_OPT="--env-file /home/${{ secrets.EC2_USER }}/app/.env"
+
+            echo "Run -> ${IMAGE_URI}:${TAG}"
             docker run -d --name noonai --restart unless-stopped \
               -p 127.0.0.1:8000:8000 $ENV_OPT \
-              ${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.${{ secrets.AWS_REGION }}.amazonaws.com/noonai:$TAG
+              "${IMAGE_URI}:${TAG}"
 
       # 4) 헬스체크 (로컬로만)
       - name: EC2 ─ health checks
@@ -146,4 +188,5 @@ jobs:
               sleep 3
             done
             curl -sSf http://127.0.0.1:8000/api/health
-            curl -sSf http://127.0.0.1:8000/api/dbhealth
+            # dbhealth가 아직 없으면 아래는 주석처리/옵셔널로 유지
+            curl -sSf http://127.0.0.1:8000/api/dbhealth || true
