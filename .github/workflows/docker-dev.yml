@@ -67,7 +67,7 @@ jobs:
       # dev 푸시 혹은 dev 대상 PR(내부)일 때만 ECR에 푸시
       - name: Configure AWS credentials (OIDC)
         if: github.event_name == 'push' || (github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository)
-        uses: aws-actions/configure-aws-credentials@v4
+        uses: aws-actions/configure-aws-credentials@v3
         with:
           role-to-assume: arn:aws:iam::605618833597:role/git_action_noonai
           aws-region:      ${{ secrets.AWS_REGION }}
