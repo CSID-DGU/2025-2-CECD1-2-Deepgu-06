@@ -4,7 +4,7 @@ from dotenv import load_dotenv
 load_dotenv()
 from app.api.routes import auth, cameras, incidents, systems
 
-app = FastAPI(title="CCTV Monitoring API")
+app = FastAPI(title="CCTV Monitoring API", docs_url="/api/docs",)
 
 app.include_router(auth.router, prefix="/api")
 app.include_router(cameras.router, prefix="/api")
