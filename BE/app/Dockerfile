@@ -25,4 +25,4 @@ COPY . .
 
 EXPOSE 8000
 # 필요에 따라 모듈 경로를 main:app 또는 app.main:app 등으로 변경
-CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000"]
+CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]
