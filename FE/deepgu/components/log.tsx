@@ -6,7 +6,7 @@ export default function LogPanel() {
       <Txt weight='semibold' className='text-xl text-white'>
         최근 통계
       </Txt>
-      <div className='bg-Semi-Red mt-3 h-10 w-full rounded-xl pt-3 shadow-inner' />
+      <div className='bg-Alert-Red mt-3 h-10 w-full rounded-xl pt-3 shadow-inner' />
     </div>
   );
 }
