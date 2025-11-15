@@ -16,12 +16,13 @@
   /* 포인트 컬러 */
   --code-theme10: #5d9afe;
   --code-theme11: #ff8989;
-  --code-theme12: #ef4667;
+  --code-theme12: #7fb5ff;
   --code-theme13: #fae100;
 
   /* 파스텔 컬러 */
   --code-theme14: #4c5562;
   --code-theme15: #788495;
+  --code-theme16: #ef4444;
 
   /* 위 색상 재정의 */
   --color-white: var(--code-theme1);
@@ -41,6 +42,7 @@
 
   --color-Gray: var(--code-theme14);
   --color-Semi-Gray: var(--code-theme15);
+  --color-Alert-Red: var(--code-theme16);
 }
 
 @theme inline {

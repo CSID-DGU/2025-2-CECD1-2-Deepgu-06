@@ -7,7 +7,7 @@ import Button from '@/components/atoms/Button';
 import Input from '@/components/atoms/Input';
 import Txt from '@/components/atoms/Text';
 
-export default function AdminSignInPage() {
+export default function SignInPage() {
   const [username, setUserName] = useState('');
   const [password, setPassword] = useState('');
   const baseUrl = `${process.env.NEXT_PUBLIC_API_URL}`;
