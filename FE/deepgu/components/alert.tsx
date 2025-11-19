@@ -15,6 +15,7 @@ export default function AlertPanel() {
             alt='쓰러짐'
             width={90}
             height={90}
+            loading='eager'
           />
           <Txt className='text-lg text-white'>1회</Txt>
         </div>
