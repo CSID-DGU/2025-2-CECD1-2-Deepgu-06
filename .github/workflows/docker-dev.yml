@@ -41,29 +41,6 @@ jobs:
           platforms: linux/amd64
           tags: noonai-backend:build-${{ github.sha }}
 
-      # ------------------------------- #
-      # ADDED: OIDC 클레임 디버그 (Assume 전)
-      # ------------------------------- #
-      - name: Debug OIDC claims (before assume)
-        if: github.event_name == 'push' || (github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository)
-        run: |
-          set -euo pipefail
-          sudo apt-get update -y && sudo apt-get install -y jq
-          token_json=$(curl -sSL -H "Authorization: Bearer $ACTIONS_ID_TOKEN_REQUEST_TOKEN" \
-            "${ACTIONS_ID_TOKEN_REQUEST_URL}&audience=sts.amazonaws.com")
-          token=$(echo "$token_json" | jq -r .value)
-          payload=$(echo "$token" | cut -d '.' -f2 | base64 -d 2>/dev/null || true)
-          echo "===== OIDC payload (decoded) ====="
-          echo "$payload" | jq .
-          echo "===== Expected repository ====="
-          echo "$GITHUB_REPOSITORY"
-          echo "===== Expected ref pattern ====="
-          if [[ "${{ github.event_name }}" == "push" ]]; then
-            echo "repo:$GITHUB_REPOSITORY:ref:refs/heads/dev"
-          else
-            echo "repo:$GITHUB_REPOSITORY:ref:refs/pull/*/merge"
-          fi
-
       # dev 푸시 혹은 dev 대상 PR(내부)일 때만 ECR에 푸시
       - name: Configure AWS credentials (OIDC)
         if: github.event_name == 'push' || (github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository)
