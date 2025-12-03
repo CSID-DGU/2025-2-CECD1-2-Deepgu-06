@@ -1,5 +1,6 @@
 #!/bin/bash
-dataset_dir="/Path/to/Data"
+#dataset_dir="/Path/to/Data"
+dataset_dir="/home/deepgu/VERA/Data"
 
 # Set paths
 videos_dir="${dataset_dir}/videos"

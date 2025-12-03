@@ -8,9 +8,9 @@ from scipy.stats import iqr
 
 
 
-ann_root = 'data/UCF_Eval.json'
+ann_root = 'Data/UCF_Eval.json'
 # This is the folder for loading the saved vision features
-vision_folder = 'data/vision_features/'
+vision_folder = 'Data/vision_features/'
 # This is the folder for saving the segment-level scores
 score_folder = 'data/segment_level_score/'
 

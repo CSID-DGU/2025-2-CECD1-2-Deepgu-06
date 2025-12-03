@@ -275,7 +275,7 @@ f = open(text_file, 'w')
 f.writelines('Generative Questions\n')
 f.close()
 
-path = 'OpenGVLab/InternVL2-8B'
+path = 'OpenGVLab/InternVL2-8B' 
  
 model = AutoModel.from_pretrained(
     path,
@@ -334,11 +334,11 @@ trainer = pl.Trainer(
     logger=tb_logger,
     val_check_interval=100,
     log_every_n_steps=5,
-    max_epochs=10, 
+    max_epochs=3, 
     enable_checkpointing=False,
     devices=1,  # Use all available GPUs
     accelerator="gpu",  # GPU training
-    strategy="ddp"  # Distributed Data Parallel training
+    strategy="auto"  # Distributed Data Parallel training/ ddp or auto
 )
 
 

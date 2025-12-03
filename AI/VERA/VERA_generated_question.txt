@@ -1,0 +1,72 @@
+Generative Questions
+accuracy: 0.75
+New Prompt Questions:
+1. Is there any suspicious person or object that looks unusual in this scene?
+2. Is there any behavior that looks unusual in this scene?
+
+
+accuracy: 0.7142857313156128
+New Prompt Questions:
+1. Are there any individuals in the video who are not behaving normally?
+2. Are there any objects in the video that are not typically present in the environment?
+3. Are there any unusual interactions or actions between individuals in the video?
+4. Are there any sudden movements or actions that are out of the ordinary?
+5. Are there any visual cues, such as clothing or accessories, that indicate an anomaly?
+
+accuracy: 0.7453416585922241
+New Prompt Questions:
+1. Are there any people in the video who are carrying or handling objects in a way that is not typical or could indicate an anomaly?
+2. Are there any objects in the video that are not typically found in the given setting and could be causing a disturbance?
+3. Are there any changes in the behavior of people or vehicles in the video that are not typical and could indicate an anomaly?
+4. Are there any changes in the environment or surroundings in the video that are not typical and could indicate an anomaly?
+5. Are there any people in the video who are interacting with each other in a way that is not typical or could indicate an anomaly, such as a heated argument or unusual physical contact?
+
+
+accuracy: 0.7142857313156128
+New Prompt Questions:
+1. Are there any people in the video who are behaving in an unexpected way?
+2. Are there any objects that are not behaving as expected, such as moving in unusual ways or being in unexpected positions?
+3. Are there any objects that are interacting with other objects in an unexpected way?
+4. Are there any objects that are missing or not present in the scene that should be there?
+5. Are there any objects that are in an unexpected position?
+
+accuracy: 0.6832298040390015
+New Prompt Questions:
+1. Are there any individuals in the video who are behaving in a suspicious or unusual manner?
+2. Are there any interactions between people that seem out of place or unexpected in a casino setting?
+3. Are there any objects or behaviors in the video that are not commonly seen in a casino environment?
+4. Are there any sudden changes in the video, such as a person entering or leaving the scene, that seem out of place or unexpected?
+5. Are there any movements or actions in the video that are unusual or unexpected for the given context?
+
+accuracy: 0.6645962595939636
+New Prompt Questions:
+1. Are there any specific objects in the video frames that are not in their expected locations or positions?
+2. Are there any objects in the video frames that are not being used in a way that is consistent with their intended function or purpose?
+3. Are there any people in the video frames who are interacting with each other in a way that is not consistent with the typical behavior of people in that environment?
+4. Are there any objects in the video frames that are not being handled or moved in a way that is consistent with their usual handling or movement patterns?
+5. Are there any objects in the video frames that are not in their expected locations or positions?
+
+accuracy: 0.7080745697021484
+New Prompt Questions:
+1. Are there any objects in the video that are not part of the street environment or being used in an unusual way?
+2. Are there any changes in the behavior or actions of the objects in the video that are not typical for their usual use?
+3. Are there any objects in the video that are not in their usual place or being used in an unusual way?
+4. Are there any changes in the behavior or actions of the objects in the video that are not typical for their usual environment?
+5. Are there any objects in the video that are not part of the street's infrastructure or being used in an unusual way?
+
+accuracy: 0.6645962595939636
+New Prompt Questions:
+1. Are there any sudden movements or actions in the video frames that are not typical for the given context?
+2. Are there any objects or people that appear to be missing or have disappeared from the scene in the video frames?
+3. Are there any visual artifacts or inconsistencies in the video frames that could indicate a problem with the recording or processing?
+4. Are there any unusual patterns or behaviors in the video frames that deviate from the norm?
+5. Are there any objects that are out of place or not interacting as expected in the video frames?
+
+accuracy: 0.7080745697021484
+New Prompt Questions:
+1. Are there any people or objects that are in unusual positions or moving in unexpected ways?
+2. Are there any interactions between people or objects that seem out of place or abnormal?
+3. Are there any objects that are not where they should be or are behaving in an unexpected manner?
+4. Are there any people or objects that are not following the typical patterns of behavior in the video?
+5. Are there any environmental factors, such as lighting or weather conditions, that are not behaving as expected?
+
