@@ -2,6 +2,7 @@
 FROM python:3.14-slim AS builder
 WORKDIR /app
 
+
 # venv 생성 및 활성
 ENV VENV=/opt/venv
 RUN python -m venv $VENV
