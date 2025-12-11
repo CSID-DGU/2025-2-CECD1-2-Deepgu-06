@@ -1,79 +1,101 @@
 # app/api/routes/incidents.py
-from datetime import datetime
-from typing import List, Optional
 
-from fastapi import APIRouter, Depends, Query, HTTPException, status
+from typing import Optional, Literal, List
+from datetime import datetime, timezone
+
+from fastapi import APIRouter, Depends
 from sqlalchemy.orm import Session
 
 from app.db.session import get_db
-from app.api import deps
-from app.models.user import User, UserRole
-from app.models.incident import Incident
-from app.models.user_cctv import UserCctv
-from app.schemas.incident import IncidentCreate, IncidentOut
+from app.models.incident import Incident as IncidentModel   # ★ ORM 모델
+from app.schemas.incident import IncidentEventIn, IncidentOut  # ★ Pydantic 스키마
 
-router = APIRouter(prefix="/incidents", tags=["incidents"])
-
-
-@router.post("/", response_model=IncidentOut)
-def create_incident(payload: IncidentCreate, db: Session = Depends(get_db)):
-    incident = Incident(**payload.dict())
-    db.add(incident)
-    db.commit()
-    db.refresh(incident)
-    return incident
+router = APIRouter(
+    prefix="/incidents",   # cameras와 스타일 맞춤: /api/incidents
+    tags=["Incidents"],
+)
 
 
-@router.get("/", response_model=List[IncidentOut])
-def list_incidents(
-    cctv_id: Optional[int] = None,
-    type: Optional[str] = None,
-    from_time: Optional[datetime] = Query(None, alias="from"),
-    to_time: Optional[datetime] = Query(None, alias="to"),
+@router.post("/events")
+def handle_incident_event(
+    ev: IncidentEventIn,
     db: Session = Depends(get_db),
-    current_user: User = Depends(deps.get_current_user),
 ):
-    q = db.query(Incident)
+    """
+    worker에서 보내는 start/end 이벤트 처리.
+    - event == "start": 새로운 이상행동 구간 시작 (INSERT)
+    - event == "end": 해당 cctv의 마지막 OPEN incident 종료 (UPDATE)
+    """
+    ts = datetime.fromtimestamp(ev.timestamp, tz=timezone.utc)
 
-    if current_user.role != UserRole.ADMIN:
-        allowed_cctv_ids = (
-            db.query(UserCctv.cctv_id)
-            .filter(UserCctv.user_id == current_user.user_id)
-            .subquery()
+    if ev.event == "start":
+        # 이미 OPEN 상태가 있으면 중복 start 막기
+        open_incident = (
+            db.query(IncidentModel)
+            .filter(
+                IncidentModel.cctv_id == ev.cctv_id,
+                IncidentModel.status == "OPEN",
+            )
+            .order_by(IncidentModel.start_time.desc())
+            .first()
         )
-        q = q.filter(Incident.cctv_id.in_(allowed_cctv_ids))
+        if open_incident:
+            return {
+                "ok": True,
+                "message": "incident already open",
+                "incident_id": open_incident.incident_id,
+            }
 
-    if cctv_id is not None:
-        q = q.filter(Incident.cctv_id == cctv_id)
-    if type is not None:
-        q = q.filter(Incident.type == type)
-    if from_time is not None:
-        q = q.filter(Incident.start_time >= from_time)
-    if to_time is not None:
-        q = q.filter(Incident.start_time <= to_time)
+        now = datetime.now(timezone.utc)
 
-    return q.order_by(Incident.start_time.desc()).all()
-
-
-# 사건 상세 조회
-@router.get("/{incident_id}", response_model=IncidentOut)
-def get_incident(
-    incident_id: int,
-    db: Session = Depends(get_db),
-    current_user: User = Depends(deps.get_current_user),
-):
-    q = db.query(Incident).filter(Incident.incident_id == incident_id)
-
-    if current_user.role != UserRole.ADMIN:
-        allowed_cctv_ids = (
-            db.query(UserCctv.cctv_id)
-            .filter(UserCctv.user_id == current_user.user_id)
-            .subquery()
+        new_incident = IncidentModel(
+            cctv_id=ev.cctv_id,
+            type="ANOMALY",          # 나중에 VIOLENCE, FALL 등으로 확장 가능
+            start_time=ts,
+            end_time=None,
+            start_frame=ev.frame_idx,
+            end_frame=None,
+            explanation=ev.explanation,
+            status="OPEN",
+            video_url=None,
+            created_at=now,
+            updated_at=now,
         )
-        q = q.filter(Incident.cctv_id.in_(allowed_cctv_ids))
+        db.add(new_incident)
+        db.commit()
+        db.refresh(new_incident)
 
-    incident = q.first()
-    if not incident:
-        raise HTTPException(status_code=404, detail="Incident not found")
+        return {
+            "ok": True,
+            "message": "incident started",
+            "incident_id": new_incident.incident_id,
+        }
 
-    return incident
+    elif ev.event == "end":
+        open_incident = (
+            db.query(IncidentModel)
+            .filter(
+                IncidentModel.cctv_id == ev.cctv_id,
+                IncidentModel.status == "OPEN",
+            )
+            .order_by(IncidentModel.start_time.desc())
+            .first()
+        )
+        if not open_incident:
+            return {"ok": False, "message": "no open incident for this cctv"}
+
+        open_incident.end_time = ts
+        open_incident.end_frame = ev.frame_idx
+        open_incident.status = "CLOSED"
+        open_incident.updated_at = datetime.now(timezone.utc)
+
+        db.commit()
+
+        return {
+            "ok": True,
+            "message": "incident ended",
+            "incident_id": open_incident.incident_id,
+        }
+
+    else:
+        return {"ok": False, "message": "invalid event type"}

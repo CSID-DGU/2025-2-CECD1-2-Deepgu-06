@@ -20,7 +20,7 @@ def list_cameras(
     db: Session = Depends(get_db),
     current_user: User = Depends(deps.get_current_user),
 ):
-    if current_user.role == UserRole.ADMIN:
+    if current_user.role == UserRole.ADMIN or UserRole.VIEWER:
         q = db.query(Cctv)
     else:
         q = (
@@ -86,7 +86,7 @@ def map_user_to_cctv(
     db: Session = Depends(get_db),
     current_user: User = Depends(deps.get_current_user),
 ):
-    if current_user.role != UserRole.ADMIN:
+    if current_user.role != UserRole.VIEWER:
         raise HTTPException(status_code=403, detail="Admins only")
 
     cctv = db.query(Cctv).filter(Cctv.cctv_id == cctv_id).first()
