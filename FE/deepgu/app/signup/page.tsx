@@ -2,6 +2,7 @@
 
 import Image from 'next/image';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import { useState } from 'react';
 import Button from '@/components/atoms/Button';
 import Input from '@/components/atoms/Input';
@@ -13,9 +14,52 @@ export default function SignUpPage() {
   const [password, setPassword] = useState('');
   const [secondPassword, setSecondPassword] = useState('');
   const [phoneNumber, setPhoneNumber] = useState('');
+  const [error, setError] = useState('');
+  const [loading, setLoading] = useState(false);
+  const router = useRouter();
+
+  const baseUrl = (
+    process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'
+  ).replace(/\/$/, '');
 
   const onSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    setError('');
+
+    if (password !== secondPassword) {
+      setError('비밀번호가 일치하지 않습니다.');
+      return;
+    }
+
+    setLoading(true);
+
+    try {
+      const res = await fetch(`${baseUrl}/api/auth/register`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          name,
+          email,
+          password,
+        }),
+      });
+
+      if (!res.ok) {
+        const data = await res.json().catch(() => null);
+        throw new Error(data?.detail || '회원가입에 실패했습니다.');
+      }
+
+      // 가입 성공 → 로그인 페이지로 이동
+      router.push('/signin');
+    } catch (err) {
+      const message =
+        err instanceof Error ? err.message : '회원가입에 실패했습니다.';
+      setError(message);
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
@@ -143,10 +187,16 @@ export default function SignUpPage() {
           <Button
             type='submit'
             className='mt-[30px] h-[50px] w-full font-[AppleSDGothicNeoSB] text-xl'
+            disabled={loading}
           >
-            {/* {signUp.isPending ? '가입 중…' : '회원가입'} */}
-            회원가입
+            {loading ? '가입 중…' : '회원가입'}
           </Button>
+
+          {error && (
+            <div className='mt-3 rounded-md bg-red-100 p-2'>
+              <Txt className='text-sm text-red-700'>{error}</Txt>
+            </div>
+          )}
 
           {/* 로그인으로 이동 */}
           <div className='flex items-center justify-center pt-4'>
