@@ -5,7 +5,8 @@ WORKDIR /app
 # venv 생성 및 활성
 ENV VENV=/opt/venv
 RUN python -m venv $VENV
-ENV PATH="$VENV/bin:$PATH"
+ENV PATH="$VENV/bin:$PATH" 
+
 
 # 의존성 설치
 COPY requirements.txt .
