@@ -99,3 +99,23 @@ def handle_incident_event(
 
     else:
         return {"ok": False, "message": "invalid event type"}
+    
+@router.get("/", response_model=List[IncidentOut])
+def list_incidents(
+    cctv_id: int,
+    status: Optional[str] = None,   # "OPEN", "CLOSED" 등
+    db: Session = Depends(get_db),
+):
+    """
+    특정 CCTV에 대한 incidents 리스트 조회.
+    - 예: /api/incidents?cctv_id=1&status=OPEN
+    """
+    q = db.query(IncidentModel).filter(IncidentModel.cctv_id == cctv_id)
+
+    if status is not None:
+        q = q.filter(IncidentModel.status == status)
+
+    # 최신 순 정렬 (원하면 변경)
+    q = q.order_by(IncidentModel.start_time.desc())
+
+    return q.all()
