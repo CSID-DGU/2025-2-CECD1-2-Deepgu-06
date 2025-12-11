@@ -4,7 +4,21 @@ from typing import Optional, Literal
 
 from pydantic import BaseModel
 
+class IncidentOut(BaseModel):
+    incident_id: int
+    cctv_id: int
+    type: str
+    start_time: datetime
+    end_time: Optional[datetime]
+    start_frame: int
+    end_frame: Optional[int]
+    explanation: Optional[str]
+    status: str
+    video_url: Optional[str]
 
+    class Config:
+        orm_mode = True
+        
 class IncidentEventIn(BaseModel):
     """
     워커가 보내는 start/end 이벤트 페이로드

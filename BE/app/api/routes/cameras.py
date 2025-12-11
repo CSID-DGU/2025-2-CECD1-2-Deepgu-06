@@ -1,9 +1,10 @@
 # app/api/routes/cameras.py
-from typing import List
+from typing import List, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 
+from app.schemas.incident import IncidentOut
 from app.db.session import get_db
 from app.api import deps
 from app.models.user import User, UserRole
@@ -12,6 +13,7 @@ from app.models.user_cctv import UserCctv
 from app.schemas.cctv import CctvOut, CctvCreate
 
 router = APIRouter(prefix="/cameras", tags=["cameras"])
+
 
 
 # CCTV 목록 조회 (ADMIN: 전체, VIEWER: 권한 있는 것만)
