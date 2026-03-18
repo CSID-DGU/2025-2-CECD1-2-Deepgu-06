@@ -1,0 +1,153 @@
+name: Media Docker Build, Push & Deploy
+
+on:
+  push:
+    branches: [dev]
+    paths:
+      - '.github/workflows/media-cd.yml'
+      - 'MEDIA/**'
+  pull_request:
+    branches: [dev]
+    paths:
+      - '.github/workflows/media-cd.yml'
+      - 'MEDIA/**'
+  workflow_dispatch:
+
+permissions:
+  id-token: write
+  contents: read
+
+jobs:
+  build-and-push:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        shell: bash
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build Docker image
+        uses: docker/build-push-action@v6
+        with:
+          context: ./MEDIA
+          file: ./MEDIA/Dockerfile
+          load: true
+          push: false
+          platforms: linux/amd64
+          tags: noonai-media:build-${{ github.sha }}
+
+      - name: Configure AWS credentials (OIDC)
+        if: github.event_name == 'push'
+        uses: aws-actions/configure-aws-credentials@v3
+        with:
+          role-to-assume: arn:aws:iam::${{ secrets.AWS_ACCOUNT_ID }}:role/git_action_noonai
+          aws-region: ${{ secrets.AWS_REGION }}
+          role-session-name: gha-noonai-media-${{ github.run_id }}
+
+      - name: Login to Amazon ECR
+        if: github.event_name == 'push'
+        uses: aws-actions/amazon-ecr-login@v2
+
+      - name: Tag & push to ECR
+        if: github.event_name == 'push'
+        run: |
+          set -euo pipefail
+          IMAGE_URI=${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.${{ secrets.AWS_REGION }}.amazonaws.com/noonai-media
+          TAG=dev-${{ github.sha }}
+
+          echo "Pushing -> ${IMAGE_URI}:${TAG}"
+          docker tag noonai-media:build-${{ github.sha }} "${IMAGE_URI}:${TAG}"
+          docker push "${IMAGE_URI}:${TAG}"
+
+  deploy-to-ec2:
+    needs: build-and-push
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    if: github.event_name == 'push'
+
+    steps:
+      - name: EC2 ─ inject .env
+        uses: appleboy/ssh-action@v1.2.2
+        with:
+          host: ${{ secrets.MEDIA_EC2_HOST }}
+          username: ${{ secrets.MEDIA_EC2_USER }}
+          key: ${{ secrets.MEDIA_EC2_SSH_KEY }}
+          script: |
+            set -euo pipefail
+            mkdir -p /home/${{ secrets.MEDIA_EC2_USER }}/app
+            umask 077
+            printf '%s\n' "${{ secrets.MEDIA_ENV }}" > /home/${{ secrets.MEDIA_EC2_USER }}/app/.env
+            chmod 600 /home/${{ secrets.MEDIA_EC2_USER }}/app/.env
+
+      - name: EC2 ─ ECR login & pull
+        uses: appleboy/ssh-action@v1.2.2
+        with:
+          host: ${{ secrets.MEDIA_EC2_HOST }}
+          username: ${{ secrets.MEDIA_EC2_USER }}
+          key: ${{ secrets.MEDIA_EC2_SSH_KEY }}
+          script: |
+            set -euo pipefail
+            AWS_ACCOUNT_ID='${{ secrets.AWS_ACCOUNT_ID }}'
+            AWS_REGION='${{ secrets.AWS_REGION }}'
+            REPO='noonai-media'
+            TAG=dev-${{ github.sha }}
+            IMAGE_URI="${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com/${REPO}"
+
+            echo "Login ECR: ${IMAGE_URI}"
+            aws ecr get-login-password --region "${AWS_REGION}" \
+              | docker login --username AWS --password-stdin "${IMAGE_URI}"
+
+            echo "Pull -> ${IMAGE_URI}:${TAG}"
+            docker pull "${IMAGE_URI}:${TAG}"
+
+      - name: EC2 ─ deploy container
+        uses: appleboy/ssh-action@v1.2.2
+        with:
+          host: ${{ secrets.MEDIA_EC2_HOST }}
+          username: ${{ secrets.MEDIA_EC2_USER }}
+          key: ${{ secrets.MEDIA_EC2_SSH_KEY }}
+          script: |
+            set -euo pipefail
+            AWS_ACCOUNT_ID='${{ secrets.AWS_ACCOUNT_ID }}'
+            AWS_REGION='${{ secrets.AWS_REGION }}'
+            REPO='noonai-media'
+            TAG=dev-${{ github.sha }}
+            IMAGE_URI="${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com/${REPO}"
+
+            docker stop noonai-media || true
+            docker rm noonai-media || true
+
+            ENV_OPT=""
+            [[ -f /home/${{ secrets.MEDIA_EC2_USER }}/app/.env ]] && ENV_OPT="--env-file /home/${{ secrets.MEDIA_EC2_USER }}/app/.env"
+
+            echo "Run -> ${IMAGE_URI}:${TAG}"
+            docker run -d --name noonai-media --restart unless-stopped \
+              -p 127.0.0.1:9000:9000 \
+              $ENV_OPT \
+              "${IMAGE_URI}:${TAG}"
+
+      - name: EC2 ─ health checks
+        uses: appleboy/ssh-action@v1.2.2
+        with:
+          host: ${{ secrets.MEDIA_EC2_HOST }}
+          username: ${{ secrets.MEDIA_EC2_USER }}
+          key: ${{ secrets.MEDIA_EC2_SSH_KEY }}
+          script: |
+            set -euo pipefail
+            for i in {1..20}; do
+              code=$(curl --max-time 2 -s -o /dev/null -w "%{http_code}" http://127.0.0.1:9000/health || true)
+              if [[ "$code" == "200" ]]; then
+                break
+              fi
+              sleep 3
+            done
+
+            curl -sSf http://127.0.0.1:9000/health || {
+              docker logs --tail 100 noonai-media || true
+              exit 1
+            }
